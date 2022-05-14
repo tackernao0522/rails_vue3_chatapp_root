@@ -1,7 +1,7 @@
 [submodule "api"]
   path = api
-  url = ./api
+  url = https://github.com/tackernao0522/rails_vue3_chatapp_api
 [submodule "front"]
   path = front
-  url = ./front
+  url = https://github.com/tackernao0522/rails_vue3_chatapp_front
 
