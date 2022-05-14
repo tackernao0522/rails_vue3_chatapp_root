@@ -347,3 +347,186 @@ export default defineConfig({
 
 + vite-vue-routerについて https://zenn.dev/takpon1751/articles/83135cc6a0fc9f <br>
 
+# 2章: 認証機能を実装
+
+## 2-2 認証機能の実装 gem devise
+
++ `api/Gemfile`を編集<br>
+
+```Gemfile
+source 'https://rubygems.org'
+git_source(:github) { |repo| "https://github.com/#{repo}.git" }
+
+ruby '2.6.4'
+
+# Bundle edge Rails instead: gem 'rails', github: 'rails/rails', branch: 'main'
+gem 'rails', '~> 6.0.5'
+# Use postgresql as the database for Active Record
+gem 'pg', '>= 0.18', '< 2.0'
+# Use Puma as the app server
+gem 'puma', '~> 4.1'
+# Build JSON APIs with ease. Read more: https://github.com/rails/jbuilder
+# gem 'jbuilder', '~> 2.7'
+# Use Redis adapter to run Action Cable in production
+# gem 'redis', '~> 4.0'
+# Use Active Model has_secure_password
+# gem 'bcrypt', '~> 3.1.7'
+
+# Use Active Storage variant
+# gem 'image_processing', '~> 1.2'
+
+# Reduces boot times through caching; required in config/boot.rb
+gem 'bootsnap', '>= 1.4.2', require: false
+
+# Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin AJAX possible
+# gem 'rack-cors'
+
+# ここから追加
+gem 'devise', '~> 4.8'
+gem 'devise_token_auth', '~> 1.1', '>= 1.1.5'
+# ここまで
+
+group :development, :test do
+  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+  gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
+end
+
+group :development do
+  gem 'listen', '~> 3.2'
+  # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
+  gem 'spring'
+  gem 'spring-watcher-listen', '~> 2.0.0'
+end
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
+```
+
++ `$ docker compose build api`を実行<br>
+
++ `$ docker compose run --rm api rails g devise:install`を実行<br>
+
++ `$ docker compose run --rm api rails g devise_token_auth:install User auth`を実行<br>
+
++ `api/db/migrate/divise_token_auth_create_users.rb`を編集(コメントアウトしておく)<br>
+
+```rb:devise_token_auth_create_users.rb
+class DeviseTokenAuthCreateUsers < ActiveRecord::Migration[6.0]
+  def change
+
+    create_table(:users) do |t|
+      ## Required
+      t.string :provider, :null => false, :default => "email"
+      t.string :uid, :null => false, :default => ""
+
+      ## Database authenticatable
+      t.string :encrypted_password, :null => false, :default => ""
+
+      ## Recoverable
+      # t.string   :reset_password_token
+      # t.datetime :reset_password_sent_at
+      # t.boolean  :allow_password_change, :default => false
+
+      ## Rememberable
+      # t.datetime :remember_created_at
+
+      ## Confirmable
+      # t.string   :confirmation_token
+      # t.datetime :confirmed_at
+      # t.datetime :confirmation_sent_at
+      # t.string   :unconfirmed_email # Only if using reconfirmable
+
+      ## Lockable
+      # t.integer  :failed_attempts, :default => 0, :null => false # Only if lock strategy is :failed_attempts
+      # t.string   :unlock_token # Only if unlock strategy is :email or :both
+      # t.datetime :locked_at
+
+      ## User Info
+      t.string :name
+      # t.string :nickname
+      # t.string :image
+      t.string :email
+
+      ## Tokens
+      t.json :tokens
+
+      t.timestamps
+    end
+
+    add_index :users, :email,                unique: true
+    add_index :users, [:uid, :provider],     unique: true
+    # add_index :users, :reset_password_token, unique: true
+    # add_index :users, :confirmation_token,   unique: true
+    # add_index :users, :unlock_token,         unique: true
+  end
+end
+```
+
++ `root $ docker compose run --rm api rails db:migrate`を実行<br>
+
++ `api/config/initialize/devise_token_auth.rb`を編集<br>
+
+```rb:devise_token_auth.rb
+# frozen_string_literal: true
+
+DeviseTokenAuth.setup do |config|
+  # By default the authorization headers will change after each request. The
+  # client is responsible for keeping track of the changing tokens. Change
+  # this to false to prevent the Authorization header from changing after
+  # each request.
+  config.change_headers_on_each_request = false # falseに変更する
+
+  # By default, users will need to re-authenticate after 2 weeks. This setting
+  # determines how long tokens will remain valid after they are issued.
+  config.token_lifespan = 2.weeks # コメントアウト解除
+
+  # Limiting the token_cost to just 4 in testing will increase the performance of
+  # your test suite dramatically. The possible cost value is within range from 4
+  # to 31. It is recommended to not use a value more than 10 in other environments.
+  config.token_cost = Rails.env.test? ? 4 : 10
+
+  # Sets the max number of concurrent devices per user, which is 10 by default.
+  # After this limit is reached, the oldest tokens will be removed.
+  # config.max_number_of_devices = 10
+
+  # Sometimes it's necessary to make several requests to the API at the same
+  # time. In this case, each request in the batch will need to share the same
+  # auth token. This setting determines how far apart the requests can be while
+  # still using the same auth token.
+  # config.batch_request_buffer_throttle = 5.seconds
+
+  # This route will be the prefix for all oauth2 redirect callbacks. For
+  # example, using the default '/omniauth', the github oauth2 provider will
+  # redirect successful authentications to '/omniauth/github/callback'
+  # config.omniauth_prefix = "/omniauth"
+
+  # By default sending current password is not needed for the password update.
+  # Uncomment to enforce current_password param to be checked before all
+  # attribute updates. Set it to :password if you want it to be checked only if
+  # password is updated.
+  # config.check_current_password_before_update = :attributes
+
+  # By default we will use callbacks for single omniauth.
+  # It depends on fields like email, provider and uid.
+  # config.default_callbacks = true
+
+  # Makes it possible to change the headers names
+  # コメントアウト解除
+  config.headers_names = {:'access-token' => 'access-token',
+                         :'client' => 'client',
+                         :'expiry' => 'expiry',
+                         :'uid' => 'uid',
+                         :'token-type' => 'token-type' }
+  # ここまで
+
+  # By default, only Bearer Token authentication is implemented out of the box.
+  # If, however, you wish to integrate with legacy Devise authentication, you can
+  # do so by enabling this flag. NOTE: This feature is highly experimental!
+  # config.enable_standard_devise_support = false
+
+  # By default DeviseTokenAuth will not send confirmation email, even when including
+  # devise confirmable module. If you want to use devise confirmable module and
+  # send email, set it to true. (This is a setting for compatibility)
+  # config.send_confirmation_email = true
+end
+```
