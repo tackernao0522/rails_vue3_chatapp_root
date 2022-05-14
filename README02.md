@@ -56,5 +56,49 @@ gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 + `api/config/initialize/cors.rb`を編集<br>
 
 ```rb:cors.rb
+# Be sure to restart your server when you modify this file.
 
+# Avoid CORS issues when API is called from the frontend app.
+# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin AJAX requests.
+
+# Read more: https://github.com/cyu/rack-cors
+
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins ENV['API_DOMAIN'] || ''
+
+    resource '*',
+      headers: :any,
+      expose: ['access-token', 'expiry', 'token-type', 'uid', 'client'],
+
+      methods: [:get, :post, :put, :patch, :delete, :options, :head]
+  end
+end
+```
+
+## ルーティングの設定とコントローラの作成と設定
+
++ `config/routes.rb`を編集<br>
+
+```rb:routes.rb
+Rails.application.routes.draw do
+  mount_devise_token_auth_for 'User', at: 'auth', controllers: {
+    registrations: 'auth/registrations'
+  }
+end
+```
+
++ `root $ docker compose run --rm api rails g controller auth/registrations`を実行<br>
+
++ `api/app/controllers/auth/registrations_controller.rb`を編集<br>
+
+```rb:registrations_controller.rb
+class Auth::RegistrationsController < ApplicationController
+
+  private
+
+  def sign_up_params
+    params.permit(:name, :email, :password, :password_confirmation)
+  end
+end
 ```
